@@ -20,8 +20,8 @@ class SolGPT:
         "slither": {
             "docker_name": "slither",
             "docker_image": "trailofbits/eth-security-toolbox",
-            "docker_shared_folder": os.join.path(PARENT_DIR,"cleaned" + ":/home/ethsec/shared",
-            "cmd": lambda sol_file, pragma: [f"solc-select use {pragma}", f"slither shared/{sol_file} --json -"]
+            "docker_shared_folder": os.path.join(PARENT_DIR,"cleaned" + ":/home/ethsec/shared"),
+            "cmd": lambda sol_file, pragma: [f"solc-select use --always-install {pragma}", f"slither shared/{sol_file} --json -"]
         },
         # Other vulnerability detection tools can be added
     }
@@ -109,7 +109,7 @@ class SolGPT:
 
             container = client.containers.create(
                 image=self.docker_image,
-                name=self.docker_shared_folder,
+                name=self.docker_container,
                 volumes=volumes,
                 stdin_open=True,
             )

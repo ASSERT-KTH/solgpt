@@ -8,7 +8,7 @@ import time
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - \n%(message)s \n', level=logging.INFO)
 
 CURR_DIR = os.path.dirname(__file__)
-SC_PATH = os.path.join(CURR__DIR, "cleaned")
+SC_PATH = os.path.join(CURR_DIR, "cleaned")
 files = os.listdir(SC_PATH)
 sc_files = sorted([ff for ff in files if ff.endswith(".sol") and os.path.exists(os.path.join(SC_PATH, ff))])[::-1]
 
@@ -21,7 +21,7 @@ max_try = 5
 
 for count, sc_file in enumerate(sc_files):
     sc = SolGPT(sol_path=os.path.join(SC_PATH, sc_file))
-    logging.info(f"Proessing {sc_file} ({count+1}/{len(sc_files)})")
+    logging.info(f"Processing {sc_file} ({count+1}/{len(sc_files)})")
     error_count = 0
     for cc in range(1, ntimes+1):
         new_sc_name = f"{sc_file.split('.')[0]}_{cc}round.sol"

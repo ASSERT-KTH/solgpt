@@ -70,6 +70,7 @@ class SolGPT:
                 temp = re.sub(rem_mul_new_line, "\n", remove_comments(line.strip()))
                 self._sol_txt.append(re.sub(rem_mul_new_tab, "\t", temp))
         self.sol_txt = '\n'.join(self._sol_txt)
+        self.sol_txt = remove_comments(self.sol_txt)
         
         # Get code only since ChatGPT may add some description not included in a comment block
         code_only = r"pragma solidity.*}"

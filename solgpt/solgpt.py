@@ -20,23 +20,26 @@ class SolGPT:
         "slither": {
             "docker_name": "slither",
             "docker_image": "trailofbits/eth-security-toolbox",
-            "docker_shared_folder": os.path.join(PARENT_DIR,"cleaned" + ":/home/ethsec/shared"),
             "cmd": lambda sol_file, pragma: [f"solc-select use --always-install {pragma}", f"slither shared/{sol_file} --json -"]
         },
         # Other vulnerability detection tools can be added
     }
 
-    def __init__(self, sol_path:str, vul_tool:str="slither"):
+    def __init__(self, sol_path:str, smartbugs_dir:str, outdir:str, vul_tool:str="slither"):
         
         if os.path.exists(sol_path):
             self.sol_file = os.path.basename(sol_path)
-            self.sol_path = os.path.dirname(sol_path)
+            self.sol_path = os.path.dirname(sol_path).split("/")[-1]
         else:
             logging.warning(f"Provided path '{self.sol_path}' does not exist. Using the first file in the 'cleaned' folder ")
             self.sol_file = os.listdir(self.PARENT_DIR + "/cleaned")[0]
             self.sol_path = self.PARENT_DIR + "/cleaned"
         # Create a folder for the output
-        self.output_dir = os.path.join(self.sol_path, f"{self.sol_file.split('.')[0]}")
+        self.output_dir = os.path.join(os.path.abspath(outdir), self.sol_path, self.sol_file.split(".")[0])
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir)
+        self.smartbugs = os.path.abspath(smartbugs_dir)
+        self.VUL_TOOLS["slither"]["docker_shared_folder"] = f"{self.smartbugs}:/home/ethsec/shared"
         self.vul_tool = vul_tool
         self.docker_name = self.VUL_TOOLS[vul_tool]["docker_name"]
         self.docker_image = self.VUL_TOOLS[vul_tool]["docker_image"]
@@ -65,7 +68,7 @@ class SolGPT:
         rem_mul_new_tab = r"\t+"
         logging.info(f"Reading file '{self.sol_file}'")
         self._sol_txt = list()
-        with open(os.path.join(self.sol_path, self.sol_file)) as ff:
+        with open(os.path.join(self.smartbugs, self.sol_path, self.sol_file)) as ff:
             for line in ff:
                 temp = re.sub(rem_mul_new_line, "\n", remove_comments(line.strip()))
                 self._sol_txt.append(re.sub(rem_mul_new_tab, "\t", temp))
@@ -75,7 +78,7 @@ class SolGPT:
         # Get code only since ChatGPT may add some description not included in a comment block
         code_only = r"pragma solidity.*}"
         self.sol_txt = re.search(r"pragma solidity.*}", self.sol_txt, re.DOTALL).group(0)
-        with open(os.path.join(self.sol_path, self.sol_file), "w") as ff:
+        with open(os.path.join(self.output_dir, self.sol_file), "w") as ff:
             ff.write(self.sol_txt)
 
         # Get pragma 
@@ -123,9 +126,10 @@ class SolGPT:
             container.start()
             logging.info(f"New state '{container.status}'")
         if cmd is None:
-            cmd = self.cmd(self.sol_file, self.pragma)
+            cmd = self.cmd(os.path.join(self.sol_path, self.sol_file), self.pragma)
         if isinstance(cmd, list):
             for c in cmd:
+                logging.info(f"Running command: {c}")
                 _, output = container.exec_run(cmd=c, stdout=True, stderr=True, stream=False)
         else:
             raise Exception("Command must be a list of strings")
@@ -135,6 +139,8 @@ class SolGPT:
     
     def _get_vul(self):
         vuls_raw = json.loads(self.run_on_docker())
+        with open(os.path.join(self.output_dir, f"{self.sol_file.split('.')[0]}_vulns.json"), "w") as ff:
+            json.dump(vuls_raw, ff)
         if self.vul_tool == "slither":
             if vuls_raw.get("results", False).get("detectors", False):
                 vulns = list(map(lambda x: {key: x[key] for key in ["description", "check", "impact", "confidence","first_markdown_element"]}, 
@@ -174,6 +180,8 @@ class SolGPT:
         prompt = prompt_init
         new_code = None
         prompt += f"\"{self.sol_txt}\""
+
+        new_sol_file = os.path.basename(new_sol_file)
         
         # If tool is selected, the vulnerabilities' description is added to the prompt
         if with_tool:
